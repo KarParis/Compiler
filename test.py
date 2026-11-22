@@ -5,7 +5,13 @@ from oosParser import oosParser
 from oosMyListener import oosMyListener
 
 def main():
-    input = FileStream("check.oos", encoding="utf-8")
+
+    if len(sys.argv) != 2:
+        print("Usage: python3 oosCompiler.py <testfile.oos>")
+        sys.exit(1)
+
+    input_file = sys.argv[1]
+    input = FileStream(input_file, encoding="utf-8")
     lexer = oosLexer(input)
     stream = CommonTokenStream(lexer)
     parser = oosParser(stream)
@@ -15,8 +21,8 @@ def main():
     walker = ParseTreeWalker()
     walker.walk(listener, tree)
 
-    print(listener.get_output())
-
+    print("Created output.c")
+    print("Created states.txt")
     
 
 if __name__ == "__main__":

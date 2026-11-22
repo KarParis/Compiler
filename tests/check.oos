@@ -15,15 +15,18 @@ class Check:
             print 1;
         else:
             print 0;
+        endif;
         ;
-        ;
+
+
 
     def and_test(self, int x, int y): -
         if([x > 5 and y > 5]):
             print 1;
         else:
             print 0;
-        ;
+        endif;
+        
         ;
 
     def or_test(self, int x, int y): -
@@ -31,7 +34,7 @@ class Check:
             print 1;
         else:
             print 0;
-        ;
+        endif;
         ;
 
     def overloading_test(self,int x): -
@@ -53,10 +56,10 @@ class Check:
                 print x;
             else:
                 print 0;
-            ;
+            endif;
         else:
             print 0;
-        ;
+        endif;
         ;
 
     def while_if_test(self, int x):-
@@ -66,8 +69,8 @@ class Check:
                 print x;
             else:
                 x = 0;
-            ;
-        ;
+            endif;
+        endwhile;
         ;
 
 ##############################################################
@@ -96,6 +99,5 @@ class Main:
         c.double_if_test(7);
         c.double_if_test(3);
         print 1111;
-        c.while_if_test(6)
-
+        c.while_if_test(6);
         ;

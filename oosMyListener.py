@@ -34,6 +34,8 @@ class oosMyListener(oosListener):
 
         self.c_code = {}
 
+        self.states_logs = []
+
     def add_tab(self):
         self.tabs += 1
 
@@ -47,38 +49,44 @@ class oosMyListener(oosListener):
         return "\n".join(self.output)
 
 
+    #write state logs
+    def write_states(self, text):
+        self.states_logs.append(text)
+
 
 #--------------- MY LISTENER ---------------
 
     #Start Rule
     def enterStartRule(self, ctx: oosParser.StartRuleContext):
-        print("Entering of Start Rule")
+        self.write_states("Entering of Start Rule")
         self.add_output("\n//------------------------ Code in C ------------------------//")
         self.add_output("\n#include <stdio.h>")
         self.add_output("#include <stdlib.h>")
         self.add_output("")
 
     def exitStartRule(self, ctx: oosParser.StartRuleContext):
-        print("Exiting Start Rule")
+        self.write_states("Exiting Start Rule")
         with open("output.c", "w") as f:
             f.write(self.get_output())
+        with open("states.txt", "w") as f:
+            f.write("\n".join(self.states_logs))
 
 
 
     #Classes    
     def enterClasses(self, ctx: oosParser.ClassesContext):
-        print("Entering Classes")
+        self.write_states("Entering Classes")
 
     def exitClasses(self, ctx: oosParser.ClassesContext):
-        print("Exiting Classes")
+        self.write_states("Exiting Classes")
 
 
 
     #Class def
     def enterClass_def(self, ctx: oosParser.Class_defContext):
-        print(f"Entering Class Definition : {self.current_class}")
         class_name = ctx.class_name(0).getText()
         self.current_class = class_name
+        self.write_states(f"Entering Class Definition : {self.current_class}")
 
         self.symbol_table["classes"][class_name] = {
             "parents": [],
@@ -138,7 +146,7 @@ class oosMyListener(oosListener):
 
 
     def exitClass_def(self, ctx: oosParser.Class_defContext):
-        print(f"Exiting Class Definition : {self.current_class}\n")
+        self.write_states(f"Exiting Class Definition : {self.current_class}\n")
         self.current_class = None
 
 
@@ -146,12 +154,12 @@ class oosMyListener(oosListener):
     #Class main def
     def enterClass_main_def(self, ctx: oosParser.Class_main_defContext):
         self.current_class = "main"
-        print(f"Entering Main Class Definition : {self.current_class}")
+        self.write_states(f"Entering Main Class Definition : {self.current_class}")
         self.add_output("int main(){")
         self.add_tab()
 
     def exitClass_main_def(self, ctx: oosParser.Class_main_defContext):
-        print(f"Exiting Main Class Definition : {self.current_class}\n")
+        self.write_states(f"Exiting Main Class Definition : {self.current_class}\n")
         self.add_output("")
         self.add_output("return 0;")
         self.remove_tab()
@@ -162,25 +170,25 @@ class oosMyListener(oosListener):
 
     #Class name 
     def enterClass_name(self, ctx: oosParser.Class_nameContext):
-        print("Entering Class Name")
+        self.write_states("Entering Class Name")
 
     def exitClass_name(self, ctx: oosParser.Class_nameContext):
-        print("Exiting Class Name")
+        self.write_states("Exiting Class Name")
 
 
 
     #Declarations
     def enterDeclarations(self, ctx: oosParser.DeclarationsContext):
-        print("Entering Declarations")
+        self.write_states("Entering Declarations")
 
     def exitDeclarations(self, ctx: oosParser.DeclarationsContext):
-        print("Exiting Declarations")
+        self.write_states("Exiting Declarations")
 
 
 
     #Class Body
     def enterClass_body(self, ctx: oosParser.Class_bodyContext):
-        print("Entering Class Body")
+        self.write_states("Entering Class Body")
         self.remove_tab()
         self.output.append(f"}} {self.current_class};")
         self.add_output("")
@@ -188,22 +196,22 @@ class oosMyListener(oosListener):
         self.method_counts = {}
 
     def exitClass_body(self, ctx: oosParser.Class_bodyContext):
-        print("Exiting Class Body")
+        self.write_states("Exiting Class Body")
 
 
 
     #Main Body
     def enterMain_body(self, ctx: oosParser.Main_bodyContext):
-        print("Entering Main Body")
+        self.write_states("Entering Main Body")
 
     def exitMain_body(self, ctx: oosParser.Main_bodyContext):
-        print("Exiting Main Body")
+        self.write_states("Exiting Main Body")
 
 
 
     #Decl_line
     def enterDecl_line(self, ctx:oosParser.Decl_lineContext):
-        print("Entering Decl_line")
+        self.write_states("Entering Decl_line")
         raw_var_type = ctx.types().getText()
         var_type = raw_var_type
         add_star = False
@@ -233,12 +241,14 @@ class oosMyListener(oosListener):
         #multiple pointers at the same line
         if len(ids) > 1 and add_star:
             types_str = var_type.replace("*" , "")
+            pointers = []
             for name in ids:
-                names_str = ", ".join(f"*{name}")
+                pointers.append(f"*{name}")
+            names_str = ", ".join(pointers)
             decl_str = f"{types_str} {names_str};"
 
         #multiple variables at the same line
-        if len(ids) > 1:
+        elif len(ids) > 1:
             names_str = ", ".join(ids)
             decl_str = f"{var_type} {names_str};"
         else:
@@ -253,14 +263,14 @@ class oosMyListener(oosListener):
         
                   
     def exitDecl_line(self, ctx: oosParser.Decl_lineContext):
-        print("Exiting Decl_line")
+        self.write_states("Exiting Decl_line")
         #self.add_output("")
 
 
 
     #Constructor Def
     def enterConstructor_def(self, ctx: oosParser.Constructor_defContext):
-        print("Entering Constructor Definition")
+        self.write_states("Entering Constructor Definition")
         self.in_constructor = True
         self.in_method = True
 
@@ -283,7 +293,7 @@ class oosMyListener(oosListener):
 
         
     def exitConstructor_def(self, ctx: oosParser.Constructor_defContext):
-        print("Exiting Constructor Definition")
+        self.write_states("Exiting Constructor Definition")
         self.add_output("return self;")
         self.remove_tab()
         self.add_output("}")
@@ -295,7 +305,7 @@ class oosMyListener(oosListener):
 
     #Method def
     def enterMethod_def(self, ctx: oosParser.Method_defContext):
-        print("Entering Method Definition")
+        self.write_states("Entering Method Definition")
         self.in_method = True
 
         #clear local varibles
@@ -330,7 +340,7 @@ class oosMyListener(oosListener):
                 self.return_type = "void"
 
     def exitMethod_def(self, ctx: oosParser.Method_defContext):
-        print("Exiting Method Definition")
+        self.write_states("Exiting Method Definition")
         self.remove_tab()
         self.add_output("}")
         self.add_output("")
@@ -342,7 +352,7 @@ class oosMyListener(oosListener):
 
     #Method Main Def
     def enterMethod_main_def(self, ctx: oosParser.Method_main_defContext):
-        print("Entering Method Main Definition")
+        self.write_states("Entering Method Main Definition")
         self.in_method = True
         self.current_method = "main"
 
@@ -350,7 +360,7 @@ class oosMyListener(oosListener):
        # self.symbol_table["local"].clear()
         
     def exitMethod_main_def(self, ctx: oosParser.Method_main_defContext):
-        print("Exiting Method Main Definition")
+        self.write_states("Exiting Method Main Definition")
         self.current_method = None
         self.in_method = False
 
@@ -358,43 +368,43 @@ class oosMyListener(oosListener):
 
     #Types
     def enterTypes(self, ctx: oosParser.TypesContext):
-        print("Entering Types")
+        self.write_states("Entering Types")
 
     def exitTypes(self, ctx: oosParser.TypesContext):
-        print("Exiting Types")
+        self.write_states("Exiting Types")
 
 
 
     #Parameters
     def enterParameters(self, ctx: oosParser.ParametersContext):
-        print("Entering Parameters")
+        self.write_states("Entering Parameters")
 
     def exitParameters(self, ctx: oosParser.ParametersContext):
-        print("Exiting Parameters")
+        self.write_states("Exiting Parameters")
 
 
 
     #Method Body
     def enterMethod_body(self, ctx: oosParser.Method_bodyContext):
-        print("Entering Method Body")
+        self.write_states("Entering Method Body")
 
     def exitMethod_body(self, ctx: oosParser.Method_bodyContext):
-        print("Exiting Method Body")
+        self.write_states("Exiting Method Body")
 
 
 
     #Return Type
     def enterReturn_type(self, ctx: oosParser.Return_typeContext):
-        print("Entering Return Type")
+        self.write_states("Entering Return Type")
 
     def exitReturn_type(self, ctx: oosParser.Return_typeContext):
-        print("Exiting Return Type")
+        self.write_states("Exiting Return Type")
 
 
 
     #Parlist
     def enterParlist(self, ctx: oosParser.ParlistContext):
-        print("Entering Parlist")
+        self.write_states("Entering Parlist")
         parameters = [f"struct {self.current_class}* self"]
         ids = ctx.ID()
         types = ctx.types()
@@ -404,7 +414,11 @@ class oosMyListener(oosListener):
                 param_type = types[i].getText()
                 param_name = ids[i].getText()
                 self.symbol_table["local"][param_name] = param_type
-                parameters.append(f"{param_type} {param_name}")
+
+                if param_type != "int":
+                    parameters.append(f"{param_type}* {param_name}")
+                else:
+                    parameters.append(f"{param_type} {param_name}")
         params = ", ".join(parameters)
 
         if ids:
@@ -429,31 +443,31 @@ class oosMyListener(oosListener):
             self.add_tab()
 
     def exitParlist(self, ctx: oosParser.ParlistContext):
-        print("Exiting Parlist")
+        self.write_states("Exiting Parlist")
 
 
 
     #Statements
     def enterStatements(self, ctx: oosParser.StatementsContext):
-        print("Entering Statements")
+        self.write_states("Entering Statements")
 
     def exitStatements(self, ctx: oosParser.StatementsContext):
-        print("Exiting Statements")
+        self.write_states("Exiting Statements")
 
 
 
     #Statement
     def enterStatement(self, ctx: oosParser.StatementContext):
-        print("Entering Statement")
+        self.write_states("Entering Statement")
 
     def exitStatement(self, ctx: oosParser.StatementContext):
-        print("Exiting Statement")
+        self.write_states("Exiting Statement")
 
 
 
     #Assignment Statement
     def enterAssignment_stat(self, ctx: oosParser.Assignment_statContext):
-        print("Entering Assignment Statement")
+        self.write_states("Entering Assignment Statement")
         if ctx.ID():
             name = ctx.ID().getText()
             if ctx.getChild(0).getText() == "self.":
@@ -463,7 +477,7 @@ class oosMyListener(oosListener):
                 self.current_assignment = name
 
     def exitAssignment_stat(self, ctx: oosParser.Assignment_statContext):
-        print("Exiting Assignment Statement")
+        self.write_states("Exiting Assignment Statement")
         if ctx.expression():
             expr_code = self.c_code[ctx.expression()]
             self.add_output(f"{self.current_assignment} = {expr_code};")
@@ -472,10 +486,10 @@ class oosMyListener(oosListener):
     
     #Direct Call Statement
     def enterDirect_call_stat(self, ctx: oosParser.Direct_call_statContext):
-        print("Entering Direct Call Statement")
+        self.write_states("Entering Direct Call Statement")
                        
     def exitDirect_call_stat(self, ctx: oosParser.Direct_call_statContext):
-        print("Exiting Direct Call Statement")
+        self.write_states("Exiting Direct Call Statement")
 
         func_name = ctx.func_call().ID().getText()
         arg_code = []
@@ -525,7 +539,7 @@ class oosMyListener(oosListener):
 
     #If Statement
     def enterIf_stat(self, ctx: oosParser.If_statContext):
-        print("Entering If Statement")
+        self.write_states("Entering If Statement")
         self.if_cond.append(ctx.condition())
 
         #cond = ctx.condition().getText().replace("self.", "self->")
@@ -543,27 +557,27 @@ class oosMyListener(oosListener):
         '''
         
     def exitIf_stat(self, ctx: oosParser.If_statContext):
-        print("Exiting If Statement")
+        self.write_states("Exiting If Statement")
         self.remove_tab()
         self.add_output("}")
 
 
     #Else Part
     def enterElse_part(self, ctx: oosParser.Else_partContext):
-        print("Entering Else Part")
+        self.write_states("Entering Else Part")
         if ctx.getChildCount() > 0:
             self.remove_tab()
             self.add_output("} else {")
             self.add_tab()
 
     def exitElse_part(self, ctx: oosParser.Else_partContext):
-        print("Exiting Else Part")
+        self.write_states("Exiting Else Part")
     
 
 
     #While Statement
     def enterWhile_stat(self, ctx: oosParser.While_statContext):
-        print("Entering While Statement")
+        self.write_states("Entering While Statement")
         self.while_cond.append(ctx.condition())
 
         #cond = ctx.condition().getText().replace("self.", "self->")
@@ -581,17 +595,17 @@ class oosMyListener(oosListener):
         '''
 
     def exitWhile_stat(self , ctx: oosParser.While_statContext):
-        print("Exiting While Statement")
+        self.write_states("Exiting While Statement")
         self.remove_tab()
         self.add_output("}")
 
 
     #Return Statement
     def enterReturn_stat(self, ctx: oosParser.Return_statContext):
-        print("Entering Return Statement")
+        self.write_states("Entering Return Statement")
 
     def exitReturn_stat(self, ctx: oosParser.Return_statContext):
-        print("Exiting Return Statement")
+        self.write_states("Exiting Return Statement")
         if ctx.expression():
             self.add_output(f"return {self.c_code[ctx.expression()]};")
         elif ctx.ID():
@@ -604,7 +618,7 @@ class oosMyListener(oosListener):
         
     #Input Statement
     def enterInput_stat(self, ctx: oosParser.Input_statContext):
-        print("Entering Input Statement")
+        self.write_states("Entering Input Statement")
 
         if ctx.ID():
             var_name = ctx.ID().getText()
@@ -618,15 +632,15 @@ class oosMyListener(oosListener):
             self.add_output(f"scanf(\"%d\", &{var_name});")
 
     def exitInput_stat(self, ctx: oosParser.Input_statContext):
-        print("Exiting Input Statement")
+        self.write_states("Exiting Input Statement")
 
 
     #Print Statement
     def enterPrint_stat(self, ctx: oosParser.Print_statContext):
-        print("Entering Print Statement")
+        self.write_states("Entering Print Statement")
 
     def exitPrint_stat(self, ctx: oosParser.Print_statContext):
-        print("Exiting Print Statement")
+        self.write_states("Exiting Print Statement")
         num_of_expr = len(ctx.expression())
         text = ", ".join(["%d"] * num_of_expr)
 
@@ -638,10 +652,10 @@ class oosMyListener(oosListener):
 
     #Expression 
     def enterExpression(self, ctx: oosParser.ExpressionContext):
-        print("Entering Expression")
+        self.write_states("Entering Expression")
 
     def exitExpression(self, ctx: oosParser.ExpressionContext):
-        print("Exiting Expression")
+        self.write_states("Exiting Expression")
         res = ""
         if ctx.optional_sign() and ctx.optional_sign().getText():
             res += ctx.optional_sign().getText()
@@ -656,17 +670,17 @@ class oosMyListener(oosListener):
 
     #Arguments
     def enterArguments(self, ctc: oosParser.ArgumentsContext):
-        print("Entering Arguments")
+        self.write_states("Entering Arguments")
 
     def exitArguments(self, ctx: oosParser.ArgumentsContext):
-        print("Exiting Arguments")
+        self.write_states("Exiting Arguments")
 
     #Condition
     def enterCondition(self, ctx: oosParser.ConditionContext):
-        print("Entering Condition")
+        self.write_states("Entering Condition")
 
     def exitCondition(self, ctx: oosParser.ConditionContext):
-        print("Exiting Condition")
+        self.write_states("Exiting Condition")
 
         terms = ctx.boolterm()
         res = self.c_code[terms[0]]
@@ -687,17 +701,17 @@ class oosMyListener(oosListener):
 
     #Optional Sign
     def enterOptional_sign(self, ctx: oosParser.Optional_signContext):
-        print("Entering Optional Sign")
+        self.write_states("Entering Optional Sign")
 
     def exitOptional_sign(self, ctx: oosParser.Optional_signContext):
-        print("Exiting Optional Sign")
+        self.write_states("Exiting Optional Sign")
 
     #Term
     def enterTerm(self, ctx: oosParser.TermContext):
-        print("Entering Term")
+        self.write_states("Entering Term")
 
     def exitTerm(self, ctx: oosParser.TermContext):
-        print("Exiting Term")
+        self.write_states("Exiting Term")
         factors = ctx.factor()
         mul_opers = ctx.mul_oper()
         res = self.c_code[factors[0]]
@@ -709,25 +723,25 @@ class oosMyListener(oosListener):
         
     #Add Operator
     def enterAdd_oper(self, ctx: oosParser.Add_operContext):
-        print("Entering Add Operator")
+        self.write_states("Entering Add Operator")
         
     def exitAdd_oper(self, ctx: oosParser.Add_operContext):
-        print("Exiting Add Operator")
+        self.write_states("Exiting Add Operator")
 
 
     #ArgList
     def enterArglist(self, ctx: oosParser.ArglistContext):
-        print("Entering Arglist")
+        self.write_states("Entering Arglist")
 
     def exitArglist(self, ctx: oosParser.ArglistContext):
-        print("Exiting Arglist")
+        self.write_states("Exiting Arglist")
 
     #Boolterm
     def enterBoolterm(self, ctx: oosParser.BooltermContext):
-        print("Entering Boolterm")
+        self.write_states("Entering Boolterm")
 
     def exitBoolterm(self, ctx: oosParser.BooltermContext):
-        print("Exiting Boolterm")
+        self.write_states("Exiting Boolterm")
 
         factors = ctx.boolfactor()
         res = self.c_code[factors[0]]
@@ -738,10 +752,10 @@ class oosMyListener(oosListener):
 
     #Factor
     def enterFactor(self, ctx: oosParser.FactorContext):
-        print("Entering Factor")
+        self.write_states("Entering Factor")
 
     def exitFactor(self, ctx: oosParser.FactorContext):
-        print("Exiting Factor")
+        self.write_states("Exiting Factor")
 
         # INTEGER
         if ctx.INTEGER():
@@ -839,24 +853,24 @@ class oosMyListener(oosListener):
     
     #Mul oper
     def enterMul_oper(self, ctx: oosParser.Mul_operContext):
-        print("Entering Mul Operator")
+        self.write_states("Entering Mul Operator")
 
     def exitMul_oper(self, ctx: oosParser.Mul_operContext):
-        print("Exiting Mul Operator")
+        self.write_states("Exiting Mul Operator")
 
     #Argitem
     def enterArgitem(self, ctx: oosParser.ArgitemContext):
-        print("Entering Argitem")
+        self.write_states("Entering Argitem")
 
     def exitArgitem(self, ctx: oosParser.ArgitemContext):
-        print("Exiting Argitem")
+        self.write_states("Exiting Argitem")
 
     #Boolfactor
     def enterBoolfactor(self, ctx: oosParser.BoolfactorContext):
-        print("Entering Boolfactor")
+        self.write_states("Entering Boolfactor")
 
     def exitBoolfactor(self, ctx: oosParser.BoolfactorContext):
-        print("Exiting Boolfactor")
+        self.write_states("Exiting Boolfactor")
 
         #not 
         if ctx.condition():
@@ -881,21 +895,21 @@ class oosMyListener(oosListener):
 
     #Func_call
     def enterFunc_call(self, ctx: oosParser.Func_callContext):
-        print("Entering Func Call")
+        self.write_states("Entering Func Call")
 
     def exitFunc_call(self, ctx: oosParser.Func_callContext):
-        print("Exiting Func Call")
+        self.write_states("Exiting Func Call")
 
     #Constructor call   
     def enterConstructor_call(self, ctx: oosParser.Constructor_callContext):
-        print("Entering Constructor Call")
+        self.write_states("Entering Constructor Call")
 
     def exitConstructor_call(self, ctx: oosParser.Constructor_callContext):
-        print("Exiting Constructor Call")
+        self.write_states("Exiting Constructor Call")
 
     #Rel_oper
     def enterRel_oper(self, ctx: oosParser.Rel_operContext):
-        print("Entering Rel_Oper")
+        self.write_states("Entering Rel_Oper")
     
     def exitRel_oper(self, ctx: oosParser.Rel_operContext):
-        print("Exiting Rel_Oper")
+        self.write_states("Exiting Rel_Oper")
