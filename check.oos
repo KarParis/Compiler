@@ -1,0 +1,101 @@
+
+##############################################################
+
+class Check:
+    int z;
+    ;
+
+    def __init__(self): Check
+        self.z = 0;
+        return self;
+        ;
+
+    def not_test(self, int x): -
+        if(not[x > 5]):
+            print 1;
+        else:
+            print 0;
+        ;
+        ;
+
+    def and_test(self, int x, int y): -
+        if([x > 5 and y > 5]):
+            print 1;
+        else:
+            print 0;
+        ;
+        ;
+
+    def or_test(self, int x, int y): -
+        if([x > 5 or y > 5]):
+            print 1;
+        else:
+            print 0;
+        ;
+        ;
+
+    def overloading_test(self,int x): -
+        print x;
+        ;
+
+    def overloading_test(self,int x,int y): -
+        print x, y;
+        ;   
+
+    def input_test(self): -
+        input self.z;
+        print self.z;
+        ;
+
+    def double_if_test(self, int x):-
+        if(x > 5):
+            if(x < 15):
+                print x;
+            else:
+                print 0;
+            ;
+        else:
+            print 0;
+        ;
+        ;
+
+    def while_if_test(self, int x):-
+        while(x > 5):
+            if(x < 10):
+                x = x + 1;
+                print x;
+            else:
+                x = 0;
+            ;
+        ;
+        ;
+
+##############################################################
+
+class Main:
+    Check c;
+    int in;
+    ;
+
+    def main(self): -
+        print 1111;
+        c = Check();
+        c.input_test();
+        print 1111;
+        c.not_test(6);
+        print 1111;
+        c.and_test(6,4);
+        c.and_test(6,7);
+        print 1111;
+        c.or_test(6,4);
+        c.or_test(3,4);
+        print 1111;
+        c.overloading_test(6);
+        c.overloading_test(6,7);
+        print 1111;
+        c.double_if_test(7);
+        c.double_if_test(3);
+        print 1111;
+        c.while_if_test(6)
+
+        ;

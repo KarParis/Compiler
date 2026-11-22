@@ -10,6 +10,7 @@ class oosMyListener(oosListener):
 
         self.current_class = None
         self.current_method = None
+        self.raw_method_name = None
         self.in_constructor = False
         self.in_method = False
 
@@ -22,6 +23,9 @@ class oosMyListener(oosListener):
 
         #current class methods
         self.method_counts = {}
+
+        self.if_cond = []
+        self.while_cond = []
 
         self.symbol_table = {
             "classes": {}, 
@@ -79,8 +83,10 @@ class oosMyListener(oosListener):
         self.symbol_table["classes"][class_name] = {
             "parents": [],
             "fields": {},
-            "constructors": [],
-            "methods": {}
+            "field_paths": {},
+            "constructors": {},
+            "methods": {},
+            "method_paths": {}
         }
         
         self.add_output("typedef struct " + self.current_class + "{")
@@ -89,29 +95,46 @@ class oosMyListener(oosListener):
         all_classes = ctx.class_name()
         if len(all_classes) > 1:
             cur_info = self.symbol_table["classes"][class_name]
-            for parent in all_classes[1:]:
+            parents = all_classes[1:]
+            for parent in parents:
                 parent_name = parent.getText()
                 cur_info["parents"].append(parent_name)
+                if len(parents) == 1:
+                    super_name = "super"
+                else:
+                    super_name = f"super_{parent_name}"
 
-                #get parent fields and methods
+                self.add_output(f"struct {parent_name} {super_name};")
+                
+              
+                #get parent info
                 if parent_name in self.symbol_table["classes"]:
                     parent_fields = self.symbol_table["classes"][parent_name]["fields"]
+                    parent_field_paths = self.symbol_table["classes"][parent_name]["field_paths"]
                     parent_methods = self.symbol_table["classes"][parent_name]["methods"]
+                    parent_method_paths = self.symbol_table["classes"][parent_name]["method_paths"]
                 else:
                     parent_fields = {}
+                    parent_field_paths = {}
                     parent_methods = {}
+                    parent_method_paths = {}
+
 
                 for field_name, field_type in parent_fields.items():
                     if field_name not in cur_info["fields"]:
                         cur_info["fields"][field_name] = field_type
-                        if field_type == "int":
-                            self.add_output(f"int {field_name};")
-                        else:
-                            self.add_output(f"struct {field_type}* {field_name};")
+                        cur_info["field_paths"][field_name] = f"{super_name}.{parent_field_paths[field_name]}"
+                        
+                        
 
-                for method_name, parent_class in parent_methods.items():
+                for method_name, owner_class in parent_methods.items():
                     if method_name not in cur_info["methods"]:
-                        cur_info["methods"][method_name] = parent_class
+                        cur_info["methods"][method_name] = owner_class
+                        prev_path = parent_method_paths[method_name]
+                        if prev_path:
+                            cur_info["method_paths"][method_name] = f"{super_name}.{prev_path}"
+                        else:
+                            cur_info["method_paths"][method_name] = super_name
 
 
     def exitClass_def(self, ctx: oosParser.Class_defContext):
@@ -201,6 +224,7 @@ class oosMyListener(oosListener):
             else:
                 if var_name not in self.symbol_table["classes"][self.current_class]["fields"]:
                     self.symbol_table["classes"][self.current_class]["fields"][var_name] = raw_var_type
+                    self.symbol_table["classes"][self.current_class]["field_paths"][var_name] = var_name
                     ids.append(var_name)
 
         if len(ids) == 0:
@@ -252,11 +276,12 @@ class oosMyListener(oosListener):
                 constructor_name = f"{class_name}_init_{self.constructor_counter}"
                 
             self.current_method = constructor_name
-        
+
         else:
            print("Class does not have a construtor")
            exit(0) 
 
+        
     def exitConstructor_def(self, ctx: oosParser.Constructor_defContext):
         print("Exiting Constructor Definition")
         self.add_output("return self;")
@@ -277,7 +302,10 @@ class oosMyListener(oosListener):
         self.symbol_table["local"].clear()
 
         method_name = ctx.ID().getText()
-        self.symbol_table["classes"][self.current_class]["methods"][method_name] = self.current_class
+        self.raw_method_name = method_name
+        
+        #self.symbol_table["classes"][self.current_class]["methods"][method_name] = self.current_class
+        #self.symbol_table["classes"][self.current_class]["method_paths"][method_name] = ""
         
         #add method counter 0
         if method_name not in self.method_counts:
@@ -308,6 +336,7 @@ class oosMyListener(oosListener):
         self.add_output("")
         self.current_method = None
         self.in_method = False
+        self.raw_method_name = None
 
 
 
@@ -376,18 +405,26 @@ class oosMyListener(oosListener):
                 param_name = ids[i].getText()
                 self.symbol_table["local"][param_name] = param_type
                 parameters.append(f"{param_type} {param_name}")
-
         params = ", ".join(parameters)
+
+        if ids:
+            num_args = len(ids)
+        else:
+            num_args = 0
+
         if self.in_constructor:
             self.add_output(f"{self.current_class}* {self.current_method}({params}) {{")
             self.add_tab()
             self.add_output("if (self == NULL) {")
             self.add_tab()
-            self.add_output(f"self = (struct {self.current_class}*) malloc(sizeof(struct {self.current_class}));")
+            self.add_output(f"self = ({self.current_class}*) malloc(sizeof({self.current_class}));")
             self.remove_tab()
             self.add_output("}")
             self.add_output("")
-        else:
+            self.symbol_table["classes"][self.current_class]["constructors"][num_args] = self.current_method
+        elif self.in_method:
+            self.symbol_table["classes"][self.current_class]["methods"][(self.raw_method_name, num_args)] = self.current_method
+            self.symbol_table["classes"][self.current_class]["method_paths"][(self.raw_method_name, num_args)] = ""
             self.add_output(f"{self.return_type} {self.current_method}({params}) {{")
             self.add_tab()
 
@@ -420,7 +457,8 @@ class oosMyListener(oosListener):
         if ctx.ID():
             name = ctx.ID().getText()
             if ctx.getChild(0).getText() == "self.":
-                self.current_assignment = f"self->{name}"
+                field_path = self.symbol_table["classes"][self.current_class]["field_paths"].get(name, name)
+                self.current_assignment = f"self->{field_path}"
             else:
                 self.current_assignment = name
 
@@ -450,7 +488,8 @@ class oosMyListener(oosListener):
             obj_name = ctx.ID().getText()
             #self.obj().function()
             if ctx.getChild(0).getText() == "self.":
-                obj_c = f"self->{obj_name}"
+                field_path = self.symbol_table["classes"][self.current_class]["field_paths"].get(obj_name, obj_name)
+                obj_c = f"self->{field_path}"
                 obj_class = self.symbol_table["classes"][self.current_class]["fields"][obj_name]
             
             #obj().function
@@ -463,21 +502,46 @@ class oosMyListener(oosListener):
             obj_c = "self"
             obj_class = self.current_class
 
-        owner_class = self.symbol_table["classes"][obj_class]["methods"].get(func_name, obj_class)
-        if owner_class != obj_class:
-            obj_c = f"(struct {owner_class}*){obj_c}"
+        #owner_class = self.symbol_table["classes"][obj_class]["methods"].get(func_name, obj_class)
+        #method_path = self.symbol_table["classes"][obj_class]["method_paths"].get(func_name, "")
+
+        key = (func_name, len(arg_code))
+        c_func = self.symbol_table["classes"][obj_class]["methods"].get(key, f"{obj_class}_{func_name}")
+        method_path = self.symbol_table["classes"][obj_class]["method_paths"].get(key, "")
+        if method_path:
+            obj_c = f"&{obj_c}->{method_path}"
 
         all_args = ", ".join([obj_c] + arg_code)
-        self.add_output(f"{obj_class}_{func_name}({all_args})")
+        self.add_output(f"{c_func}({all_args});")
+
+        # self.add_output(f"{owner_class}_{func_name}({all_args});")
+        
+        #if owner_class != obj_class:
+        #    obj_c = f"(struct {owner_class}*){obj_c}"
+
+        #all_args = ", ".join([obj_c] + arg_code)
+        #self.add_output(f"{obj_class}_{func_name}({all_args})")
 
 
     #If Statement
     def enterIf_stat(self, ctx: oosParser.If_statContext):
         print("Entering If Statement")
-        cond = ctx.condition().getText().replace("self.", "self->")
+        self.if_cond.append(ctx.condition())
+
+        #cond = ctx.condition().getText().replace("self.", "self->")
+        #self.add_output(f"if ({cond}) {{")
+        '''
+        cond = ctx.condition().getText()
+        if self.current_class in self.symbol_table["classes"]:
+            field_paths = self.symbol_table["classes"][self.current_class]["field_paths"]
+            for field_name in field_paths:
+                cond = cond.replace("self." + field_name, "self->" + field_paths[field_name])
+
+        cond = cond.replace("self.", "self->")
         self.add_output(f"if ({cond}) {{")
         self.add_tab()
-
+        '''
+        
     def exitIf_stat(self, ctx: oosParser.If_statContext):
         print("Exiting If Statement")
         self.remove_tab()
@@ -500,9 +564,21 @@ class oosMyListener(oosListener):
     #While Statement
     def enterWhile_stat(self, ctx: oosParser.While_statContext):
         print("Entering While Statement")
-        cond = ctx.condition().getText().replace("self.", "self->")
+        self.while_cond.append(ctx.condition())
+
+        #cond = ctx.condition().getText().replace("self.", "self->")
+        
+        ''''
+        cond = ctx.condition().getText()
+        if self.current_class in self.symbol_table["classes"]:
+            field_paths = self.symbol_table["classes"][self.current_class]["field_paths"]
+            for field_name in field_paths:
+                cond = cond.replace("self." + field_name, "self->" + field_paths[field_name])
+
+        cond = cond.replace("self.", "self->")
         self.add_output(f"while ({cond}) {{")
         self.add_tab()
+        '''
 
     def exitWhile_stat(self , ctx: oosParser.While_statContext):
         print("Exiting While Statement")
@@ -520,7 +596,8 @@ class oosMyListener(oosListener):
             self.add_output(f"return {self.c_code[ctx.expression()]};")
         elif ctx.ID():
             var_name = ctx.ID().getText()
-            self.add_output(f"return self->{var_name};")
+            field_path = self.symbol_table["classes"][self.current_class]["field_paths"].get(var_name, var_name)
+            self.add_output(f"return self->{field_path};")
         else:
             self.add_output("return self;")
         
@@ -535,7 +612,8 @@ class oosMyListener(oosListener):
             var_name = ""
 
         if "self" in ctx.getText():
-            self.add_output(f"scanf(\"%d\", &self -> {var_name});")
+            field_path = self.symbol_table["classes"][self.current_class]["field_paths"].get(var_name, var_name)
+            self.add_output(f"scanf(\"%d\", &self -> {field_path});")
         else:
             self.add_output(f"scanf(\"%d\", &{var_name});")
 
@@ -577,7 +655,7 @@ class oosMyListener(oosListener):
         self.c_code[ctx] = res
 
     #Arguments
-    def enterArgument(self, ctc: oosParser.ArgumentsContext):
+    def enterArguments(self, ctc: oosParser.ArgumentsContext):
         print("Entering Arguments")
 
     def exitArguments(self, ctx: oosParser.ArgumentsContext):
@@ -589,6 +667,23 @@ class oosMyListener(oosListener):
 
     def exitCondition(self, ctx: oosParser.ConditionContext):
         print("Exiting Condition")
+
+        terms = ctx.boolterm()
+        res = self.c_code[terms[0]]
+        for i in range(1, len(terms)):
+            res += f" || {self.c_code[terms[i]]}"
+        self.c_code[ctx] = res
+
+        #if  condition
+        if ctx in self.if_cond:
+            self.add_output(f"if ({res}) {{")
+            self.add_tab()
+        
+        #while condition    
+        elif ctx in self.while_cond:
+            self.add_output(f"while ({res}) {{")
+            self.add_tab()
+        
 
     #Optional Sign
     def enterOptional_sign(self, ctx: oosParser.Optional_signContext):
@@ -634,6 +729,12 @@ class oosMyListener(oosListener):
     def exitBoolterm(self, ctx: oosParser.BooltermContext):
         print("Exiting Boolterm")
 
+        factors = ctx.boolfactor()
+        res = self.c_code[factors[0]]
+        for i in range(1, len(factors)):
+            res += f" && {self.c_code[factors[i]]}"
+        self.c_code[ctx] = res
+
 
     #Factor
     def enterFactor(self, ctx: oosParser.FactorContext):
@@ -664,49 +765,74 @@ class oosMyListener(oosListener):
 
                 #yparxei antikeimeno self.obj().function()
                 if ctx.getChild(0).getText() == "self.":
-                    obj_c = f"self->{obj_name}"
+                    field_path = self.symbol_table["classes"][self.current_class]["field_paths"].get(obj_name, obj_name)
+                    obj_c = f"self->{field_path}"
                     obj_class = self.symbol_table["classes"][self.current_class]["fields"][obj_name]
+                
                 #antikeimeno obj().function()
                 else:
                     obj_c = obj_name
                     obj_class = self.symbol_table["local"][obj_name]
 
-                owner_class = self.symbol_table["classes"][obj_class]["methods"].get(func_name, obj_class)
-                if owner_class != obj_class:
-                    obj_c = f"(struct {owner_class}*){obj_c}"
+                #owner_class = self.symbol_table["classes"][obj_class]["methods"].get(func_name, obj_class)
+                #method_path = self.symbol_table["classes"][obj_class]["method_paths"].get(func_name, "")
+                key = (func_name, len(arg_code))
+                c_func = self.symbol_table["classes"][obj_class]["methods"].get(key, f"{obj_class}_{func_name}")
+                method_path = self.symbol_table["classes"][obj_class]["method_paths"].get(key, "")
+                if method_path:
+                    obj_c = f"&{obj_c}->{method_path}"
 
                 all_args = ", ".join([obj_c] + arg_code)
-                self.c_code[ctx] = f"{obj_class}_{func_name}({all_args})"
+                self.c_code[ctx] = f"{c_func}({all_args})"
+                #self.c_code[ctx] = f"{owner_class}_{func_name}({all_args})"
 
 
             # Constructor call
             elif ctx.getChild(0).getText() != "self." and func_name in self.symbol_table["classes"]:
+                c_func = self.symbol_table["classes"][func_name]["constructors"].get(len(arg_code), f"{func_name}_init")
                 all_args = ", ".join(["NULL"] + arg_code)
-                self.c_code[ctx] = f"{func_name}_init({all_args})"
+                self.c_code[ctx] = f"{c_func}({all_args})"
 
             # self method 
             else:
-                owner_class = self.symbol_table["classes"][self.current_class]["methods"].get(func_name, self.current_class)
-                if owner_class != self.current_class:
-                    first_arg = f"(struct {owner_class}*)self"
+                #owner_class = self.symbol_table["classes"][self.current_class]["methods"].get(func_name, self.current_class)
+                #method_path = self.symbol_table["classes"][self.current_class]["method_paths"].get(func_name, "")
+                #if owner_class != self.current_class:
+                #    first_arg = f"(struct {owner_class}*)self"
+                key = (func_name, len(arg_code))
+
+
+                c_func = self.symbol_table["classes"][self.current_class]["methods"].get(key, f"{self.current_class}_{func_name}")
+                method_path = self.symbol_table["classes"][self.current_class]["method_paths"].get(key, "")
+                if method_path:
+                    first_arg = f"&self->{method_path}"
                 else:
                     first_arg = "self"
 
                 all_args = ", ".join([first_arg] + arg_code)
-                self.c_code[ctx] = f"{owner_class}_{func_name}({all_args})"
+                self.c_code[ctx] = f"{c_func}({all_args})"
+                #self.c_code[ctx] = f"{owner_class}_{func_name}({all_args})"
             
 
         # ID '.' ID
         elif len(ctx.ID()) == 2:
             obj_name = ctx.ID(0).getText()
             field_name = ctx.ID(1).getText()
-            self.c_code[ctx] = f"{obj_name}->{field_name}"
+            #self.c_code[ctx] = f"{obj_name}->{field_name}"
+            obj_class = self.symbol_table["local"].get(obj_name)
+
+            if obj_class in self.symbol_table["classes"]:
+                field_path = self.symbol_table["classes"][obj_class]["field_paths"].get(field_name, field_name)
+                self.c_code[ctx] = f"{obj_name}->{field_path}"
+            else:
+                self.c_code[ctx] = f"{obj_name}->{field_name}"
 
         # ('self.')?ID
         elif len(ctx.ID()) == 1 and not ctx.func_call():
             var_name = ctx.ID(0).getText()
             if ctx.getChild(0).getText() == "self.":
-                self.c_code[ctx] = f"self->{var_name}"
+                field_path = self.symbol_table["classes"][self.current_class]["field_paths"].get(var_name, var_name)
+                self.c_code[ctx] = f"self->{field_path}"
             else:
                 self.c_code[ctx] = var_name
 
@@ -731,6 +857,27 @@ class oosMyListener(oosListener):
 
     def exitBoolfactor(self, ctx: oosParser.BoolfactorContext):
         print("Exiting Boolfactor")
+
+        #not 
+        if ctx.condition():
+            if ctx.getChild(0).getText() in ("not", "!"):
+                self.c_code[ctx] = f"!({self.c_code[ctx.condition()]})"
+            else:
+                self.c_code[ctx] = f"({self.c_code[ctx.condition()]})"            
+
+        elif hasattr(ctx, "boolfactor") and ctx.boolfactor():
+            self.c_code[ctx] = f"!({self.c_code[ctx.boolfactor()]})"
+
+        else:
+            exp1 = self.c_code[ctx.expression(0)]
+            exp2 = self.c_code[ctx.expression(1)]
+            op = ctx.rel_oper().getText()
+            if op == "==":
+                op = "=="
+            elif op == "<>":
+                op = "!="
+            
+            self.c_code[ctx] = f"{exp1} {op} {exp2}"
 
     #Func_call
     def enterFunc_call(self, ctx: oosParser.Func_callContext):

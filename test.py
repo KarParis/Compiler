@@ -5,7 +5,7 @@ from oosParser import oosParser
 from oosMyListener import oosMyListener
 
 def main():
-    input = FileStream("shape.oos", encoding="utf-8")
+    input = FileStream("check.oos", encoding="utf-8")
     lexer = oosLexer(input)
     stream = CommonTokenStream(lexer)
     parser = oosParser(stream)

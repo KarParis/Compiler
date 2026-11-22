@@ -20,26 +20,10 @@ class Shape:
     def move(self, int dx, int dy): -
         self.x = self.x + dx;
         self.y = self.y + dy;
-        if(self.x >= 1)
-            self.y = self.y + 1;
-        else
-            self.y = self.y - 1;
-        endif;
-        while(dx > 2) 
-            self.y = 0
-        endwhile;
         ;
-        
 
     def move(self, int dx): -
         self.x = self.x + dx;
-        ;
-
-    def inputs(self, int x, int y): -
-        input x;
-        input self.x;
-        input y;
-        input self.y;
         ;
 
     def set_x(self, int x): -
